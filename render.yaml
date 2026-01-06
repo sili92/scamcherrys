@@ -1,0 +1,6 @@
+services:
+  - type: worker
+    name: cherrys-bot
+    runtime: python
+    pythonVersion: 3.11.9
+    startCommand: python comprascherrys1.py
