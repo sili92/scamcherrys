@@ -16,7 +16,7 @@ from telegram.ext import (
 )
 
 # ───────────────── CONFIG ─────────────────
-BOT_TOKEN = os.getenv("BOT_TOKEN")  # ← RENDER USA ESTO
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 ADMIN_GROUP_ID = -1003517104846
 GROUP_LINK = "https://t.me/+bzEP-l8AmJZhMzgx"
@@ -56,8 +56,10 @@ def admin_buttons(uid, stage):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "(๑˃‌ᴗ˂‌)-- ¡holi! bienvenido a cherry's shopping, adquiere de manera rápida y segura.\n\n"
-        "⪧ /buy\n⪧ /renew\n⪧ /sub\n\n"
-        "Pulsa el botón para iniciar tu compra ⇣",
+        "﹟  Te presentamos nuestros comandos:\n\n"
+        "⪧ /buy\n⪧ /renew\n⪧ /sub\n⪧ /contact\n⪧ /channels\n"
+        "⪧ /historial\n⪧ /refes\n⪧ /othermethods\n\n"
+        "─┈   pulsa el botón para iniciar tu compra ⇣",
         reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("buy", callback_data="buy_start")]
         ])
@@ -83,15 +85,15 @@ async def buy_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         pending_type[q.from_user.id] = mode
 
         await q.edit_message_text(
-            "⌗   ¡Gracias! un administrador revisará tu solicitud."
+            "⌗   ¡Gracias! un administrador se encargará de revisar tu solicitud y en breve se te notificarán novedades."
         )
 
         await context.bot.send_message(
             chat_id=ADMIN_GROUP_ID,
             text=(
                 f"🛒 NUEVA SOLICITUD ({mode.upper()})\n\n"
-                f"👤 @{q.from_user.username or q.from_user.id}\n"
-                f"📦 {plan[0]} - {plan[1]} robux"
+                f"👤 Usuario: @{q.from_user.username or q.from_user.id}\n"
+                f"📦 Plan: {plan[0]} - {plan[1]} robux"
             ),
             reply_markup=admin_buttons(q.from_user.id, "req")
         )
@@ -110,25 +112,64 @@ async def admin_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
     plan_id = users[uid]["plan"]
     plan = PLANS[plan_id]
 
-    if stage == "req" and action == "approve":
-        pending_photos[uid] = True
-        await context.bot.send_message(
-            chat_id=uid,
-            text=f"🔗 {plan[2]}\n\nEnvía la captura del pago."
-        )
-
-    elif stage == "pay" and action == "approve":
-        end = datetime.now() + timedelta(days=int(plan_id))
-        pending_photos.pop(uid, None)
-
-        await context.bot.send_message(
-            chat_id=uid,
-            text=(
-                "⌗   ¡Compra / Renovación Exitosa! 🎊\n\n"
-                f"Tu plan vence el {end.strftime('%d/%m/%Y')}.\n\n"
-                f"🔗 {GROUP_LINK}"
+    if stage == "req":
+        if action == "approve":
+            pending_photos[uid] = True
+            await context.bot.send_message(
+                chat_id=uid,
+                text=(
+                    "⌗   ¡Tu solicitud fué aprobada!\n"
+                    "Te indicamos cómo proseguir con tu compra.\n\n"
+                    f"🔗 {plan[2]}\n\n"
+                    "⪧ Compra el gamepass y envía la captura sin modificar."
+                )
             )
-        )
+        else:
+            await context.bot.send_message(
+                chat_id=uid,
+                text="⌗   Tu solicitud fue rechazada."
+            )
+
+    elif stage == "pay":
+        if action == "approve":
+            end = datetime.now() + timedelta(days=int(plan_id))
+
+            history.setdefault(uid, []).append({
+                "plan": plan,
+                "end": end,
+                "renewed": pending_type.get(uid) == "renew"
+            })
+
+            users[uid]["expires"] = end
+            pending_photos.pop(uid, None)
+
+            header = (
+                "⌗   ¡Renovación Exitosa! 🎊\n\n"
+                if pending_type.get(uid) == "renew"
+                else "⌗   ¡Compra Exitosa! 🎊\n\n"
+            )
+
+            await context.bot.send_message(
+                chat_id=uid,
+                text=(
+                    header +
+                    f"Tu plan de {plan[0]} {plan[1]} robux empieza ahora y vence el "
+                    f"{end.strftime('%d/%m/%Y')}. "
+                    "Muchísimas gracias por confiar en Cherry's Priv. 💕\n\n"
+                    f"🔗 {GROUP_LINK}"
+                )
+            )
+        else:
+            await context.bot.send_message(
+                chat_id=uid,
+                text=(
+                    "⌗  ⁉️  Tuvimos problemas al validar tu comprobante.\n\n"
+                    "— NO recortes la foto\n"
+                    "— NO tapes nada\n"
+                    "— Adjunta tu usuario de Roblox\n\n"
+                    "Vuelve a enviar la foto."
+                )
+            )
 
 # ───────────────── FOTO ───────────────────
 async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -139,17 +180,85 @@ async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_photo(
         chat_id=ADMIN_GROUP_ID,
         photo=update.message.photo[-1].file_id,
-        caption=f"📸 @{update.message.from_user.username or uid}",
+        caption=f"📸 COMPROBANTE\n👤 @{update.message.from_user.username or uid}",
         reply_markup=admin_buttons(uid, "pay")
+    )
+
+# ───────────────── COMANDOS ───────────────
+async def renew(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "⌗ Has solicitado la renovación de tu plan, por favor pulsa el botón de tu preferencia.",
+        reply_markup=plan_buttons("renew")
+    )
+
+async def sub(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid = update.message.from_user.id
+    if uid in users and "expires" in users[uid]:
+        plan = PLANS[users[uid]["plan"]]
+        await update.message.reply_text(
+            f"⌗   ¡Hola! Esta es tu suscripción actual:\n\n"
+            f"{plan[0]} {plan[1]} robux\n"
+            f"Vence en {users[uid]['expires'].strftime('%d/%m/%Y')}"
+        )
+    else:
+        await update.message.reply_text("⌗   No tienes una suscripción activa.")
+
+async def historial_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid = update.message.from_user.id
+    if uid not in history:
+        await update.message.reply_text(
+            "⌗   No has adquirido Cherry's priv antes. ¿Qué esperas para probarlo?"
+        )
+        return
+
+    text = "⌗   Anteriormente adquiriste estos planes:\n\n"
+    for h in history[uid]:
+        text += (
+            f"{h['plan'][0]} {h['plan'][1]} robux "
+            f"venció el {h['end'].strftime('%d/%m/%Y')} "
+            f"{'renovado' if h['renewed'] else 'no renovado'}\n"
+        )
+    await update.message.reply_text(text)
+
+async def contact(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "⌗   Puedes contactar a estos usuarios:\n\n"
+        "Owner — @venustelar\n"
+        "Owner — @zilbato\n"
+        "Co-owner — @kirschteiinz"
+    )
+
+async def channels(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "⌗   Estos son nuestros canales:\n\n"
+        "࿔ Referencias: https://t.me/+FmV2e23GHJA3NjE0\n"
+        "࿔ Información: https://t.me/infocherrys"
+    )
+
+async def othermethods(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "⌗   Estos son nuestros métodos de pago:\n\n"
+        "꩜ @zilbato 🇪🇸🇪🇺 → paypal, bizum & robuxs\n"
+        "꩜ @heavenkoop 🇲🇽 → paypal, oxxo, cashi, transferencia\n"
+        "꩜ @rougtoile 🇵🇪 → paypal, yape, plin\n"
+        "꩜ @venustelar 🇨🇱 → transferencia CLP\n"
+        "꩜ @kirschteiinz 🇻🇪 → transferencia y pago móvil"
     )
 
 # ───────────────── MAIN ───────────────────
 app = ApplicationBuilder().token(BOT_TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
+app.add_handler(CommandHandler("renew", renew))
+app.add_handler(CommandHandler("sub", sub))
+app.add_handler(CommandHandler("historial", historial_cmd))
+app.add_handler(CommandHandler("contact", contact))
+app.add_handler(CommandHandler("channels", channels))
+app.add_handler(CommandHandler("othermethods", othermethods))
+
 app.add_handler(CallbackQueryHandler(buy_callback, pattern="^(buy|renew)"))
 app.add_handler(CallbackQueryHandler(admin_request, pattern="^(approve|reject)"))
 app.add_handler(MessageHandler(filters.PHOTO, photo_handler))
 
-print("🤖 Cherry’s bot activo en Render")
+print("🤖 Cherry’s bot activo")
 app.run_polling()
