@@ -1,4 +1,6 @@
 import os
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from datetime import datetime, timedelta
 
 from telegram import (
@@ -36,6 +38,18 @@ users = {}
 history = {}
 pending_photos = {}
 pending_type = {}
+
+# ───────────────── WEB SERVER (RENDER) ────
+def run_web():
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header("Content-type", "text/plain")
+            self.end_headers()
+            self.wfile.write(b"Cherry's bot running")
+
+    server = HTTPServer(("0.0.0.0", 10000), Handler)
+    server.serve_forever()
 
 # ───────────────── TECLADOS ───────────────
 def plan_buttons(prefix):
@@ -246,19 +260,23 @@ async def othermethods(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 # ───────────────── MAIN ───────────────────
-app = ApplicationBuilder().token(BOT_TOKEN).build()
+if __name__ == "__main__":
+    print("🤖 Cherry’s bot activo")
 
-app.add_handler(CommandHandler("start", start))
-app.add_handler(CommandHandler("renew", renew))
-app.add_handler(CommandHandler("sub", sub))
-app.add_handler(CommandHandler("historial", historial_cmd))
-app.add_handler(CommandHandler("contact", contact))
-app.add_handler(CommandHandler("channels", channels))
-app.add_handler(CommandHandler("othermethods", othermethods))
+    threading.Thread(target=run_web, daemon=True).start()
 
-app.add_handler(CallbackQueryHandler(buy_callback, pattern="^(buy|renew)"))
-app.add_handler(CallbackQueryHandler(admin_request, pattern="^(approve|reject)"))
-app.add_handler(MessageHandler(filters.PHOTO, photo_handler))
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
 
-print("🤖 Cherry’s bot activo")
-app.run_polling()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("renew", renew))
+    app.add_handler(CommandHandler("sub", sub))
+    app.add_handler(CommandHandler("historial", historial_cmd))
+    app.add_handler(CommandHandler("contact", contact))
+    app.add_handler(CommandHandler("channels", channels))
+    app.add_handler(CommandHandler("othermethods", othermethods))
+
+    app.add_handler(CallbackQueryHandler(buy_callback, pattern="^(buy|renew)"))
+    app.add_handler(CallbackQueryHandler(admin_request, pattern="^(approve|reject)"))
+    app.add_handler(MessageHandler(filters.PHOTO, photo_handler))
+
+    app.run_polling()
